@@ -1,0 +1,36 @@
+{
+  "name": "ELVEX_LAUNCHER",
+  "version": "1.0.0",
+  "description": "ELVEX BETA TESTING LAUNCHER",
+  "main": "index.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "keywords": [
+    "ELVEX"
+  ],
+  "build": {
+    "appId": "act8.elvex",
+    "mac": {
+      "category": "act8.elvex.launcher.game"
+    },
+    "directories": {
+      "buildResources": "./buildResources"
+    }
+  },
+  "author": "LMNYX",
+  "license": "ISC",
+  "dependencies": {
+    "adm-zip": "^0.4.14",
+    "app": "^0.1.0",
+    "download-file-with-progressbar": "^1.2.3",
+    "remote": "^0.2.6"
+  },
+  "devDependencies": {
+    "electron": "^9.0.0",
+    "electron-builder": "^22.7.0"
+  }
+}

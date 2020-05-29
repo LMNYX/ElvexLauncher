@@ -1,0 +1,209 @@
+<head>
+    <title>ELVEX BETA</title>
+    <script>window.$ = window.jQuery = require('./jquery-3.5.1.min.js');</script>
+    <link rel="stylesheet" type="text/css" href="./elvex.css">
+</head>
+
+<body>
+	<div class="ExitInvisibleButton" onclick="w.close();">
+		<div class="Exit">&times;</div>
+	</div>
+	<div class="ELVEX-LOGO"></div>
+	<br>
+
+	<div class="floor">
+		<p class="Status" id="Status">Loading</p>
+		<div class="floorgc">
+			<div class="btns"><button id="BTN0" class="btn" style="width: 309px; height: 62px; padding-left: 20px; float: left;" disabled="">Loading</button></div>
+  			<div class="pgbar"><p id="_ProgressText" class="PGText">Loading</p>
+  				<div class="pbar" style="position: absolute; bottom: 8px; margin: 8px; width: 480px; height: 16px;"><div class="pbar" id="PLength" style="position: relative; top: 0; left: 0; width: 0; height: 100%;"></div></div>
+		</div>
+	</div>
+</body>
+<script type="text/javascript">
+const electron = require('electron');
+const remote = electron.remote;
+const app = remote.app;
+var fs = require('fs');
+let w = remote.getCurrentWindow();
+const dl = require('download-file-with-progressbar');
+var AdmZip = require('adm-zip');
+const spawn = require('child_process').spawn;
+var releaseID = 0;
+app.setAppPath(process.cwd());
+var NewReleaseData = null;
+var _Download = null;
+
+var dlOpt = {
+	filename: 'build.zip',
+	dir: app.getAppPath(),
+	onDone: (info) => {
+		SetProgressText('Unpackaging...');
+		$("#PLength").width("0%");
+		UnzipBuild();
+		// CONTINUE (UNPACK, RUN & &)
+	},
+	onError: (info) => {
+		// ERROR
+	},
+	onProgress: (curr,total) => {
+		SetProgressText("Downloading "+NewReleaseData['assets'][0]['name']+"... "+(curr / total * 100).toFixed(2)+"% ("+(curr/1e+6).toFixed(2)+"/"+(total/1e+6).toFixed(2)+" MB)");
+		$("#PLength").width((curr / total * 100).toFixed(2)+"%");
+	},
+}
+
+$(document).ready(function()
+{
+	SetState(-1);
+	SetStatus("Checking for updates...");
+	SetProgressBarVisibility(false);
+	LoadLocalReleaseData();
+	GetReleaseData();
+});
+
+function SetStatus(s)
+{
+	$("#Status").text(s);
+}
+function SetProgressText(t)
+{
+	$("#_ProgressText").text(t);
+}
+
+
+function SetProgressBarVisibility(v)
+{
+	if(v){ $(".pgbar").css("display", "block"); }
+	else { $(".pgbar").css("display", "none"); }
+}
+/*
+SetProgressText("Downloading "+d['assets'][0]['name']+"...");
+				SetProgressBarVisibility(true);
+*/
+
+function LoadLocalReleaseData()
+{
+	fs.readFile('version.json', function(err, data)
+		{
+			if(err){ releaseID = 0; }
+			else {
+				if(fs.existsSync("./ELVEX/"))
+				{
+					if(fs.existsSync("./ELVEX/ELVEX.exe"))
+					{
+						releaseID = JSON.parse(data)['version'];
+					}
+					else
+					{
+						releaseID = 0;
+					}
+				}
+				else{
+					releaseID = 0;
+				}
+			}
+		});
+}
+
+function GetReleaseData()
+{
+	$.get({url: "https://api.github.com/repos/act8/elvexbuild/releases/latest",
+		success: function(d){
+			console.log(d['id'] + " vs " + releaseID );
+			if(releaseID < d['id'])
+			{
+				SetState(1);
+				SetStatus("New update available ("+d['tag_name']+")!");
+				$("#BTN0").unbind();
+				$("#BTN0").click(function(){ UpdateInitialize(); });
+				NewReleaseData = d;
+			}
+			else
+			{
+				SetState(0);
+				SetStatus("Client is up to date.");
+				$("#BTN0").unbind();
+				$("#BTN0").click(function(){ PlayInitialize(); });
+			}
+		},
+		statusCode: {
+			404: function(){ SetState(-1);
+				SetStatus("No available version was found for you. Come back later.");
+				$("#BTN0").css("display", "none");
+				return; }
+		},
+		error: function(d)
+		{
+			if(d['message'] != undefined && d['message'] == 'Not Found')
+			{
+				SetState(-1);
+				SetStatus("No available version was found for you. Come back later.");
+				return;
+			}
+		}});
+}
+
+function PlayInitialize()
+{
+	spawn(app.getAppPath()+"/ELVEX/ELVEX.exe", [], {'detached': true});
+	$("#BTN0").prop('disabled', true);
+	SetStatus("Starting the game...");
+	setTimeout(function(){ w.close() ; }, 2000);
+}
+
+function UpdateInitialize()
+{
+	$("#BTN0").prop('disabled', true);
+	SetStatus("Updating client...");
+	SetProgressText("");
+	SetProgressBarVisibility(true);
+	var _Download = dl( NewReleaseData['assets'][0]['browser_download_url'] , dlOpt);
+}
+
+function UnzipBuild()
+{
+	var _zip = new AdmZip(app.getAppPath() + "/build.zip");
+	_zip.extractAllTo(app.getAppPath()+"/ELVEX", true);
+	SetProgressText("Deleting archive...");
+	Step3Setup();
+}
+
+function Step3Setup()
+{
+	fs.unlink(app.getAppPath()+"/build.zip", function(err)
+		{
+			if(err) throw err;
+			else { CreateVersionFile(); }
+		});
+}
+
+function CreateVersionFile()
+{
+	SetProgressText("Creating version file...");
+	fs.writeFile('version.json', JSON.stringify({'version': NewReleaseData['id']}), function(err) { if (err) {alert(err);}
+	else { SetProgressText(""); SetState(0); SetStatus("Client is up to date!"); SetProgressBarVisibility(false); releaseID = NewReleaseData['id'];$("#BTN0").unbind(); $("#BTN0").click(function(){ PlayInitialize(); }); } });
+}
+
+function SetState(state)
+{
+	switch(state)
+	{
+		case -1:
+			$("#BTN0").prop('disabled', true);
+			$("#BTN0").text("Loading");
+			break;
+		case 0: // Launch
+			$("#BTN0").prop('disabled', false);
+			$("#BTN0").text("Launch");
+			break;
+		case 1: // Update
+			$("#BTN0").prop('disabled', false);
+			$("#BTN0").text("Update");
+			break;
+		default:
+			break;
+	}
+}
+
+
+</script>
